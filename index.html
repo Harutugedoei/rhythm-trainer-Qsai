@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>リズムトレーナー(Q-sai)</title>
+<style>
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #faf8f4; margin: 0; color: #222; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  button, input { touch-action: manipulation; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 16px 12px 40px; box-sizing: border-box; }
+  h1 { font-size: 20px; text-align: center; margin: 4px 0 2px; letter-spacing: 1px; }
+  .sub { text-align: center; font-size: 12px; color: #888; margin: 0 0 10px; }
+  .center-col { display: flex; flex-direction: column; align-items: center; }
+  .controls { display: flex; align-items: center; gap: 14px; justify-content: center; margin: 10px 0 4px; }
+  #playBtn { width: 76px; height: 76px; border-radius: 50%; border: none; cursor: pointer; background: #222; color: #fff; font-size: 26px; box-shadow: 0 3px 10px rgba(0,0,0,.25); }
+  #playBtn.playing { background: #cc3340; }
+  .slider-col { flex: 1; max-width: 230px; }
+  .bpm-label { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  input[type=range] { width: 100%; }
+  .toggle { margin-top: 6px; margin-right: 4px; padding: 6px 12px; border-radius: 17px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1.5px solid #d5d2cb; background: #fff; color: #888; }
+  .toggle.on { border-color: #222; background: #222; color: #fff; }
+  .sec-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; }
+  .sec-title { font-size: 13px; font-weight: 700; }
+  .clear-btn { font-size: 11px; border: 1px solid #ccc; background: #fff; border-radius: 6px; padding: 3px 8px; cursor: pointer; color: #666; }
+  .seq-area { display: flex; gap: 8px; margin-top: 6px; align-items: stretch; }
+  .seq-grid { flex: 1; padding: 8px; background: #f0ede7; border-radius: 12px; }
+  .seq-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px 2px; }
+  .seq-row.div { border-bottom: 1px dashed #d8d3ca; }
+  .slot { display: flex; align-items: center; justify-content: center; height: 46px; border: none; background: transparent; padding: 0; border-radius: 10px; }
+  .slot.filled { cursor: pointer; }
+  .slot-empty { width: 38px; height: 38px; border-radius: 50%; border: 2px dashed #c9c4ba; box-sizing: border-box; }
+  #addRowsBtn { width: 44px; border-radius: 12px; border: 1px solid #e3e0d9; background: #fff; color: #444; font-size: 24px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  #addRowsBtn:disabled { background: #eee; color: #bbb; cursor: default; }
+  #addRowsBtn .small { font-size: 9px; font-weight: 600; }
+  .palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
+  .pal-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px 5px; border: 1px solid #e3e0d9; border-radius: 12px; background: #fff; cursor: pointer; }
+  .pal-spacer { min-height: 85px; border: 1.5px dashed #d8d3ca; border-radius: 12px; background: #fff; }
+  .count-disp { font-size: 64px; font-weight: 800; color: #222; line-height: 1; margin: 8px 0; min-height: 64px; }
+  /* ランダムモード */
+  .lv-row { display: flex; gap: 6px; margin-top: 6px; }
+  .lv-btn { flex: 1; padding: 8px 2px; border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1.5px solid #d5d2cb; background: #fff; color: #888; }
+  .lv-btn.on { border-color: #222; background: #222; color: #fff; }
+  .rm-box { margin-top: 10px; padding: 10px 6px; background: #f0ede7; border-radius: 12px; }
+  .rm-label { font-size: 11px; font-weight: 700; color: #888; margin: 0 0 2px 6px; }
+  .rm-row { display: flex; gap: 4px; justify-content: center; }
+  .rm-beat { border-radius: 8px; padding: 2px; }
+  .rm-next .rm-beat { opacity: 0.45; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <pattern id="restHatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#9a958c" stroke-width="2"/>
+    </pattern>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <h1>リズムトレーナー(Q-sai)</h1>
+  <p class="sub">1拍 = 円1周。斜線部分は休符(音なし)</p>
+
+  <div class="center-col">
+    <svg id="mainSvg" width="290" height="290" viewBox="0 0 320 320"></svg>
+    <div id="countDisp" class="count-disp" style="display:none"></div>
+    <svg id="notSvg" width="220" height="84" viewBox="0 0 220 84"></svg>
+  </div>
+
+  <div class="controls">
+    <button id="playBtn">&#9654;</button>
+    <div class="slider-col">
+      <div class="bpm-label">&#9833; = <span id="bpmVal">70</span> BPM</div>
+      <input type="range" id="bpmSlider" min="40" max="200" value="70">
+      <div>
+        <button id="countBtn" class="toggle on">カウントイン ON</button>
+        <button id="viewBtn" class="toggle on" onclick="toggleView()">音符のみ ON</button>
+        <button id="randBtn" class="toggle" onclick="toggleRandom()">ランダム OFF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ランダム連続再生モード -->
+  <div id="randPanel" style="display:none">
+    <div class="sec-head">
+      <span class="sec-title">ランダム連続再生(1小節ごとに自動生成)</span>
+    </div>
+    <div class="lv-row">
+      <button class="lv-btn on" data-lv="0" onclick="setLevel(0)">Level 1</button>
+      <button class="lv-btn" data-lv="1" onclick="setLevel(1)">Level 2</button>
+      <button class="lv-btn" data-lv="2" onclick="setLevel(2)">Level 3</button>
+      <button class="lv-btn" data-lv="3" onclick="setLevel(3)">Max</button>
+    </div>
+    <div class="rm-box">
+      <div class="rm-label">現在の小節</div>
+      <div id="rmCur" class="rm-row"></div>
+      <div class="rm-label" style="margin-top:8px">次の小節(プレビュー)</div>
+      <div id="rmNext" class="rm-row rm-next"></div>
+    </div>
+  </div>
+
+  <!-- 手動シーケンス -->
+  <div id="seqSection">
+    <div class="sec-head">
+      <span class="sec-title">シーケンス(1段 = 1小節 / タップで削除)</span>
+      <button id="clearBtn" class="clear-btn">クリア</button>
+    </div>
+    <div class="seq-area">
+      <div id="seqGrid" class="seq-grid"></div>
+      <button id="addRowsBtn" title="2小節追加"><span>＋</span><span class="small">2段</span></button>
+    </div>
+  </div>
+
+  <div id="palSection">
+    <div class="sec-head">
+      <span class="sec-title">パターン(タップで追加)</span>
+    </div>
+    <div id="palette" class="palette"></div>
+  </div>
+</div>
+
+<script>
+// ============ データ ============
+// ev: 拍内イベント列 { t: 開始位置(0〜1), rest: 休符フラグ }
+var PATS = [
+  { id: 0,  ev: [{ t: 0 }], color: "#2d2a2e" },
+  { id: 1,  ev: [{ t: 0 }, { t: 0.5 }], color: "#3b3691" },
+  { id: 2,  ev: [{ t: 0 }, { t: 1/3 }, { t: 2/3 }], color: "#d4c500", trip: true },
+  { id: 3,  ev: [{ t: 0 }, { t: 0.25 }, { t: 0.5 }, { t: 0.75 }], color: "#d44f9e" },
+  { id: 4,  ev: [{ t: 0 }, { t: 0.5 }, { t: 0.75 }], color: "#2196d9" },
+  { id: 5,  ev: [{ t: 0 }, { t: 0.25 }, { t: 0.5 }], color: "#43a047" },
+  { id: 6,  ev: [{ t: 0 }, { t: 0.25 }, { t: 0.75 }], color: "#e8641b" },
+  { id: 7,  ev: [{ t: 0 }, { t: 0.75 }], color: "#5b3a8e" },
+  { id: 8,  ev: [{ t: 0 }, { t: 0.25 }], color: "#cc3340" },
+  { id: 9,  ev: [{ t: 0, rest: true }, { t: 0.5 }], color: "#00897b" },
+  { id: 10, ev: [{ t: 0, rest: true }], color: "#7d776d" },
+  { id: 11, ev: [{ t: 0 }, { t: 1/3, rest: true }, { t: 2/3 }], color: "#9e9d24", trip: true },
+  { id: 12, ev: [{ t: 0, rest: true }, { t: 0.75 }], color: "#6d4c41" },
+  { id: 13, ev: [{ t: 0, rest: true }, { t: 0.25 }], color: "#ad1457" },
+  { id: 14, ev: [{ t: 0, rest: true }, { t: 0.25 }, { t: 0.5 }], color: "#455a64" },
+];
+var EMPTY_PAT = { ev: [{ t: 0, rest: true }], color: "#9a958c" };
+// パレット配置(3段のみ)
+var PALETTE_LAYOUT = [
+  0, 1, 3, 10,              // 1段目: 4分 / 8分×2 / 16分×4 / 4分休符
+  4, 5, 6, 9,               // 2段目: 8分+16分×2 / 16分×2+8分 / 16分+8分+16分 / 8分休符+8分
+  7, 8, 12, 13,             // 3段目: 付点8分+16分 / 16分+付点8分 / 付点8分休符+16分 / 16分休符+付点8分
+];
+// ランダムモードの出題プール(4段階)
+var LEVEL_POOLS = [
+  [0, 1, 3, 10],                            // Level 1: 1段目のみ
+  [4, 5, 6, 9],                             // Level 2: 2段目のみ
+  [7, 8, 12, 13],                           // Level 3: 3段目のみ
+  [0, 1, 3, 10, 4, 5, 6, 9, 7, 8, 12, 13],  // Max: 1〜3段目すべて
+];
+var COLS = 4, INIT_ROWS = 4, MAX_ROWS = 8, COUNT_BEATS = 4;
+var EPS = 1e-6;
+
+// ============ 状態 ============
+var slots = Array(INIT_ROWS * COLS).fill(null); slots[0] = 0;
+var effSeq = [0];
+var bpm = 70, playing = false, countIn = true;
+var dispId = 0, activeSeg = -1, playSlotIdx = -1, countNum = 0;
+var curRot = 0;
+var notesOnly = true;
+// ランダムモード
+var randomMode = false, randLevel = 0;
+var measures = [], curM = 0, curBeat = -1;
+
+var actx = null, beatDur = 60 / 70;
+var anchor = { t: 0, beats: 0 };
+var nextEv = { beatNum: 0, evIdx: 0 };
+var timer = null, raf = null;
+var prevState = { seg: -1, seqIdx: -1, count: 0 };
+
+function patOf(id) {
+  if (id === null || id === undefined || id < 0) return EMPTY_PAT;
+  return PATS[id] || EMPTY_PAT;
+}
+
+// ============ SVG生成 ============
+function arcPath(cx, cy, r, f0, f1) {
+  var a0 = (f0 * 360 - 90) * Math.PI / 180;
+  var a1 = (f1 * 360 - 90) * Math.PI / 180;
+  var x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+  var x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+  var large = f1 - f0 > 0.5 ? 1 : 0;
+  return "M" + cx + "," + cy + " L" + x0 + "," + y0 + " A" + r + "," + r + " 0 " + large + " 1 " + x1 + "," + y1 + " Z";
+}
+
+function segsMarkup(pat, cx, cy, r, sw, aSeg, isPlaying) {
+  var n = pat.ev.length;
+  function op(i) { return isPlaying ? (aSeg === i ? 1 : 0.4) : 1; }
+  if (n === 1) {
+    if (pat.ev[0].rest) {
+      return '<g opacity="' + op(0) + '">' +
+        '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + pat.color + '" fill-opacity="0.13" stroke="#fff" stroke-width="' + sw + '"/>' +
+        '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="url(#restHatch)" stroke="none"/></g>';
+    }
+    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + pat.color + '" opacity="' + op(0) + '" stroke="#fff" stroke-width="' + sw + '"/>';
+  }
+  var s = "<g>";
+  pat.ev.forEach(function (e, i) {
+    var f1 = i < n - 1 ? pat.ev[i + 1].t : 1;
+    var d = arcPath(cx, cy, r, e.t, f1);
+    if (e.rest) {
+      s += '<g opacity="' + op(i) + '">' +
+        '<path d="' + d + '" fill="' + pat.color + '" fill-opacity="0.13" stroke="#fff" stroke-width="' + sw + '" stroke-linejoin="round"/>' +
+        '<path d="' + d + '" fill="url(#restHatch)" stroke="none"/></g>';
+    } else {
+      s += '<path d="' + d + '" fill="' + pat.color + '" opacity="' + op(i) + '" stroke="#fff" stroke-width="' + sw + '" stroke-linejoin="round"/>';
+    }
+  });
+  return s + "</g>";
+}
+
+function notationMarkup(pat, color) {
+  color = color || "#222";
+  var evs = pat.ev, n = evs.length;
+  var durs = evs.map(function (e, i) { return (i < n - 1 ? evs[i + 1].t : 1) - e.t; });
+  function beamsOf(d) { return Math.abs(d - 0.25) < EPS ? 2 : Math.abs(d - 1) < EPS ? 0 : 1; }
+  var W = 220;
+  var x0 = 40, dx = n > 1 ? (W - 80) / (n - 1) : 0;
+  var hy = 64, by = 20, b2 = by + 9, bw = 4.5;
+  var xs = evs.map(function (_, i) { return x0 + dx * i; });
+  function sx(i) { return xs[i] + 7; }
+  var noteIdx = [];
+  evs.forEach(function (e, i) { if (!e.rest) noteIdx.push(i); });
+  var beamGroup = noteIdx.length > 1;
+  var s = "";
+
+  evs.forEach(function (e, i) {
+    var x = xs[i];
+    if (e.rest) {
+      if (Math.abs(durs[i] - 1) < EPS) {
+        // 4分休符グリフ(簡易ジグザグ + 下部フック)
+        var cxr = W / 2;
+        s += '<path d="M ' + (cxr - 6) + ' 26 L ' + (cxr + 4) + ' 36 L ' + (cxr - 4) + ' 46 L ' + (cxr + 6) + ' 57" stroke="' + color + '" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+             '<path d="M ' + (cxr + 6) + ' 57 Q ' + (cxr - 3) + ' 55 ' + (cxr + 2) + ' 65" stroke="' + color + '" stroke-width="3.2" fill="none" stroke-linecap="round"/>';
+        return;
+      }
+      // 8分休符(簡易グリフ)
+      s += '<circle cx="' + (x - 2) + '" cy="' + (by + 16) + '" r="4.5" fill="' + color + '"/>' +
+           '<path d="M ' + (x - 2) + ' ' + (by + 16) + ' Q ' + (x + 7) + ' ' + (by + 25) + ' ' + (x + 13) + ' ' + (by + 18) + ' L ' + (x + 4) + ' ' + (hy - 2) + '" stroke="' + color + '" stroke-width="2.8" fill="none" stroke-linecap="round"/>';
+      // 16分休符: フックをもう一段追加
+      if (Math.abs(durs[i] - 0.25) < EPS) {
+        s += '<circle cx="' + (x + 1) + '" cy="' + (by + 26) + '" r="4" fill="' + color + '"/>';
+      }
+      // 付点8分休符: 右に付点
+      if (Math.abs(durs[i] - 0.75) < EPS) {
+        s += '<circle cx="' + (x + 17) + '" cy="' + (by + 17) + '" r="3" fill="' + color + '"/>';
+      }
+      return;
+    }
+    s += '<ellipse cx="' + x + '" cy="' + hy + '" rx="8.5" ry="6.5" fill="' + color + '" transform="rotate(-18 ' + x + ' ' + hy + ')"/>';
+    var stemTop = (beamGroup || durs[i] < 1 - EPS) ? by : hy - 42;
+    s += '<line x1="' + sx(i) + '" y1="' + (hy - 2) + '" x2="' + sx(i) + '" y2="' + stemTop + '" stroke="' + color + '" stroke-width="2.5"/>';
+    if (Math.abs(durs[i] - 0.75) < EPS) s += '<circle cx="' + (x + 15) + '" cy="' + (hy - 3) + '" r="3" fill="' + color + '"/>';
+    if (!beamGroup && durs[i] < 1 - EPS) {
+      s += '<path d="M ' + sx(i) + ' ' + by + ' Q ' + (sx(i) + 13) + ' ' + (by + 13) + ' ' + (sx(i) + 5) + ' ' + (by + 30) + '" stroke="' + color + '" stroke-width="3" fill="none" stroke-linecap="round"/>';
+      if (Math.abs(durs[i] - 0.25) < EPS) {
+        s += '<path d="M ' + sx(i) + ' ' + (by + 9) + ' Q ' + (sx(i) + 12) + ' ' + (by + 21) + ' ' + (sx(i) + 5) + ' ' + (by + 36) + '" stroke="' + color + '" stroke-width="3" fill="none" stroke-linecap="round"/>';
+      }
+    }
+  });
+
+  if (beamGroup) {
+    var first = noteIdx[0], last = noteIdx[noteIdx.length - 1];
+    s += '<rect x="' + (sx(first) - 1.2) + '" y="' + by + '" width="' + (sx(last) - sx(first) + 2.4) + '" height="' + bw + '" fill="' + color + '"/>';
+    for (var k = 0; k < noteIdx.length; k++) {
+      var i2 = noteIdx[k];
+      if (beamsOf(durs[i2]) !== 2) continue;
+      var nb = k < noteIdx.length - 1 && noteIdx[k + 1] === i2 + 1 && beamsOf(durs[i2 + 1]) === 2;
+      var pb = k > 0 && noteIdx[k - 1] === i2 - 1 && beamsOf(durs[i2 - 1]) === 2;
+      if (nb) {
+        s += '<rect x="' + (sx(i2) - 1.2) + '" y="' + b2 + '" width="' + (sx(i2 + 1) - sx(i2) + 2.4) + '" height="' + bw + '" fill="' + color + '"/>';
+      } else if (!pb) {
+        var xA = k === 0 ? sx(i2) - 1.2 : sx(i2) - 14;
+        s += '<rect x="' + xA + '" y="' + b2 + '" width="15" height="' + bw + '" fill="' + color + '"/>';
+      }
+    }
+  }
+  if (pat.trip) {
+    s += '<text x="' + ((xs[0] + xs[n - 1]) / 2 + 7) + '" y="' + (by - 7) + '" text-anchor="middle" font-size="15" font-style="italic" font-weight="bold" fill="' + color + '">3</text>';
+  }
+  return s;
+}
+
+function notationSvg(pat, width) {
+  return '<svg width="' + width + '" height="' + Math.round(width * 84 / 220) + '" viewBox="0 0 220 84">' + notationMarkup(pat) + '</svg>';
+}
+
+function miniMarkup(pat, size) {
+  var r = size / 2 - 3, c = size / 2;
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' + segsMarkup(pat, c, c, r, 2, -1, false) + '</svg>';
+}
+
+// ============ 描画 ============
+var mainSvg = document.getElementById("mainSvg");
+var notSvg = document.getElementById("notSvg");
+var seqGrid = document.getElementById("seqGrid");
+var paletteEl = document.getElementById("palette");
+var playBtn = document.getElementById("playBtn");
+var bpmSlider = document.getElementById("bpmSlider");
+var bpmVal = document.getElementById("bpmVal");
+var countBtn = document.getElementById("countBtn");
+var addRowsBtn = document.getElementById("addRowsBtn");
+var clearBtn = document.getElementById("clearBtn");
+
+function renderMain() {
+  var pat = patOf(dispId);
+  var s = segsMarkup(pat, 160, 160, 130, 3, activeSeg, playing);
+  pat.ev.forEach(function (e) {
+    var a = (e.t * 360 - 90) * Math.PI / 180;
+    s += '<circle cx="' + (160 + 130 * Math.cos(a)) + '" cy="' + (160 + 130 * Math.sin(a)) + '" r="4" fill="#fff"/>';
+  });
+  if (countNum > 0) {
+    s += '<circle cx="160" cy="160" r="52" fill="#fff" opacity="0.92"/>' +
+         '<text x="160" y="182" text-anchor="middle" font-size="64" font-weight="800" fill="#222">' + countNum + '</text>';
+  }
+  s += '<g id="dotG" transform="rotate(' + curRot + ' 160 160)"><circle cx="160" cy="30" r="13" fill="#fff" stroke="#222" stroke-width="3.5"/></g>';
+  mainSvg.innerHTML = s;
+  notSvg.innerHTML = notationMarkup(pat);
+  updateCountDisp();
+}
+
+function updateCountDisp() {
+  var el = document.getElementById("countDisp");
+  if (notesOnly && countNum > 0) {
+    el.style.display = "";
+    el.textContent = countNum;
+  } else {
+    el.style.display = "none";
+  }
+}
+
+function applyView() {
+  mainSvg.style.display = notesOnly ? "none" : "";
+  if (notesOnly) {
+    notSvg.setAttribute("width", 300);
+    notSvg.setAttribute("height", Math.round(300 * 84 / 220));
+  } else {
+    notSvg.setAttribute("width", 220);
+    notSvg.setAttribute("height", 84);
+  }
+  updateCountDisp();
+}
+
+function toggleView() {
+  notesOnly = !notesOnly;
+  var b = document.getElementById("viewBtn");
+  b.textContent = "音符のみ " + (notesOnly ? "ON" : "OFF");
+  b.classList.toggle("on", notesOnly);
+  applyView();
+  renderMain();
+  renderPalette();
+  renderSeq();
+}
+
+function renderSeq() {
+  var rows = slots.length / COLS;
+  var html = "";
+  for (var r = 0; r < rows; r++) {
+    html += '<div class="seq-row' + (r < rows - 1 ? " div" : "") + '">';
+    for (var c = 0; c < COLS; c++) {
+      var i = r * COLS + c;
+      var id = slots[i];
+      var outline = playSlotIdx === i ? ' style="outline:3px solid ' + patOf(id).color + '"' : "";
+      if (id !== null) {
+        var chip = notesOnly ? notationSvg(PATS[id], 72) : miniMarkup(PATS[id], 38);
+        html += '<button class="slot filled" data-i="' + i + '"' + outline + '>' + chip + '</button>';
+      } else {
+        html += '<button class="slot" data-i="' + i + '"' + outline + '><div class="slot-empty"></div></button>';
+      }
+    }
+    html += '</div>';
+  }
+  seqGrid.innerHTML = html;
+  addRowsBtn.disabled = rows >= MAX_ROWS;
+}
+
+function updateSeqHighlight(prev, cur) {
+  if (prev === cur) return;
+  var pb = seqGrid.querySelector('.slot[data-i="' + prev + '"]');
+  if (pb) pb.style.outline = "none";
+  var cb = seqGrid.querySelector('.slot[data-i="' + cur + '"]');
+  if (cb) cb.style.outline = "3px solid " + patOf(slots[cur]).color;
+}
+
+function renderPalette() {
+  var html = "";
+  PALETTE_LAYOUT.forEach(function (pid) {
+    if (pid === null) { html += '<div class="pal-spacer"></div>'; return; }
+    var p = PATS[pid];
+    var sel = !playing && dispId === p.id ? ' style="outline:2.5px solid ' + p.color + '"' : "";
+    html += '<button class="pal-btn" data-pid="' + p.id + '"' + sel + '>' +
+      notationSvg(p, 78) +
+      (notesOnly ? "" : miniMarkup(p, 38)) +
+      '</button>';
+  });
+  paletteEl.innerHTML = html;
+}
+
+// ============ ランダムモード ============
+function genMeasure() {
+  var pool = LEVEL_POOLS[randLevel] || LEVEL_POOLS[0];
+  var m = [];
+  for (var i = 0; i < 4; i++) m.push(pool[Math.floor(Math.random() * pool.length)]);
+  return m;
+}
+
+function ensureMeasures(mi) {
+  while (measures.length <= mi + 1) measures.push(genMeasure());
+}
+
+function renderMeasures() {
+  ensureMeasures(curM);
+  var cur = measures[curM], nxt = measures[curM + 1];
+  var html = "";
+  cur.forEach(function (id, b) {
+    var hl = b === curBeat ? ' style="outline:2.5px solid ' + patOf(id).color + '"' : "";
+    html += '<div class="rm-beat" id="rmb-' + b + '"' + hl + '>' + notationSvg(patOf(id), 86) + '</div>';
+  });
+  document.getElementById("rmCur").innerHTML = html;
+  var html2 = "";
+  nxt.forEach(function (id) {
+    html2 += '<div class="rm-beat">' + notationSvg(patOf(id), 86) + '</div>';
+  });
+  document.getElementById("rmNext").innerHTML = html2;
+}
+
+function updateBeatHL(prevB, curB) {
+  var pb = document.getElementById("rmb-" + prevB);
+  if (pb) pb.style.outline = "none";
+  var cb = document.getElementById("rmb-" + curB);
+  if (cb && curB >= 0) cb.style.outline = "2.5px solid " + patOf(measures[curM][curB]).color;
+}
+
+function setLevel(lv) {
+  randLevel = lv;
+  var btns = document.querySelectorAll(".lv-btn");
+  btns.forEach(function (b) { b.classList.toggle("on", +b.dataset.lv === lv); });
+  if (!playing) {
+    measures = [genMeasure(), genMeasure()];
+    curM = 0; curBeat = -1;
+    renderMeasures();
+  } else {
+    // 再生中はプレビュー以降の小節から新しい難易度を適用
+    measures = measures.slice(0, curM + 2);
+  }
+}
+
+function toggleRandom() {
+  if (playing) stop();
+  randomMode = !randomMode;
+  var b = document.getElementById("randBtn");
+  b.textContent = "ランダム " + (randomMode ? "ON" : "OFF");
+  b.classList.toggle("on", randomMode);
+  document.getElementById("randPanel").style.display = randomMode ? "" : "none";
+  document.getElementById("seqSection").style.display = randomMode ? "none" : "";
+  document.getElementById("palSection").style.display = randomMode ? "none" : "";
+  if (randomMode) {
+    measures = [genMeasure(), genMeasure()];
+    curM = 0; curBeat = -1;
+    dispId = measures[0][0];
+    renderMeasures();
+  } else {
+    dispId = effSeq.length ? (effSeq[0] !== null ? effSeq[0] : -1) : 0;
+  }
+  renderMain();
+}
+
+// 拍番号→パターン(モード共通)
+function patAtBeat(bn) {
+  if (randomMode) {
+    var m = Math.floor(bn / 4);
+    ensureMeasures(m);
+    return patOf(measures[m][bn % 4]);
+  }
+  return patOf(effSeq[bn % effSeq.length]);
+}
+
+// ============ シーケンス管理 ============
+function recomputeEff() {
+  var last = -1;
+  slots.forEach(function (s, i) { if (s !== null) last = i; });
+  effSeq = last >= 0 ? slots.slice(0, last + 1) : [];
+  if (!effSeq.length && playing && !randomMode) stop();
+  if (!playing && !randomMode && effSeq.length) dispId = effSeq[0] !== null ? effSeq[0] : -1;
+}
+
+function addPat(id) {
+  var i = slots.indexOf(null);
+  if (i < 0) return; // 空きなし(+で段を追加)
+  slots[i] = id;
+  if (!playing) dispId = id;
+  recomputeEff(); renderSeq(); renderPalette(); renderMain();
+}
+
+function clearSlot(i) {
+  slots[i] = null;
+  recomputeEff(); renderSeq(); renderPalette(); renderMain();
+}
+
+function addRows() {
+  if (slots.length / COLS >= MAX_ROWS) return;
+  slots = slots.concat(Array(2 * COLS).fill(null)); // 下に2段追加
+  renderSeq();
+}
+
+function clearAll() {
+  if (playing) stop();
+  slots = Array(INIT_ROWS * COLS).fill(null);
+  recomputeEff(); renderSeq(); renderPalette(); renderMain();
+}
+
+// ============ オーディオ ============
+function clickSound(t, accent, isCount) {
+  var o = actx.createOscillator();
+  var g = actx.createGain();
+  o.type = "square";
+  o.frequency.value = isCount ? 784 : accent ? 1568 : 1046;
+  var peak = isCount ? 0.35 : accent ? 0.4 : 0.22;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.003);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+  o.connect(g); g.connect(actx.destination);
+  o.start(t); o.stop(t + 0.1);
+}
+
+function scheduler() {
+  var now = actx.currentTime;
+  if (!randomMode && !effSeq.length) return;
+  var guard = 0;
+  while (guard++ < 64) {
+    var isCount = nextEv.beatNum < 0;
+    var pat = isCount ? EMPTY_PAT : patAtBeat(nextEv.beatNum);
+    var e = isCount ? { t: 0 } : pat.ev[Math.min(nextEv.evIdx, pat.ev.length - 1)];
+    var beat = nextEv.beatNum + e.t;
+    var t = anchor.t + (beat - anchor.beats) * beatDur;
+    if (t > now + 0.12) break;
+    if (t >= now - 0.02) {
+      if (isCount) clickSound(Math.max(t, now + 0.001), false, true);
+      else if (!e.rest) clickSound(Math.max(t, now + 0.001), e.t === 0, false);
+    }
+    if (isCount) { nextEv.beatNum++; nextEv.evIdx = 0; }
+    else {
+      nextEv.evIdx++;
+      if (nextEv.evIdx >= pat.ev.length) { nextEv.evIdx = 0; nextEv.beatNum++; }
+    }
+  }
+}
+
+function animate() {
+  if (!playing) return;
+  var now = actx.currentTime;
+  var total = anchor.beats + (now - anchor.t) / beatDur;
+  var prog = ((total % 1) + 1) % 1;
+  curRot = prog * 360;
+  var dot = document.getElementById("dotG");
+  if (dot) dot.setAttribute("transform", "rotate(" + curRot + " 160 160)");
+
+  if (total < 0) {
+    // カウントイン中: 4,3,2,1
+    var cn = Math.ceil(-total);
+    if (prevState.count !== cn) {
+      prevState.count = cn;
+      countNum = cn; activeSeg = -1;
+      var prevSlot = playSlotIdx; playSlotIdx = -1;
+      dispId = randomMode ? measures[0][0] : (effSeq.length ? (effSeq[0] !== null ? effSeq[0] : -1) : -1);
+      renderMain();
+      if (!randomMode) updateSeqHighlight(prevSlot, -1);
+    }
+    raf = requestAnimationFrame(animate);
+    return;
+  }
+  if (prevState.count !== 0) { prevState.count = 0; countNum = 0; }
+
+  var beatIdx = Math.floor(total);
+  var pat, dispKey;
+  if (randomMode) {
+    var mm = Math.floor(beatIdx / 4), bb = beatIdx % 4;
+    ensureMeasures(mm);
+    pat = patOf(measures[mm][bb]);
+    dispKey = beatIdx;
+  } else {
+    dispKey = beatIdx % effSeq.length;
+    pat = patOf(effSeq[dispKey]);
+  }
+  var seg = 0;
+  for (var i = pat.ev.length - 1; i >= 0; i--) { if (prog >= pat.ev[i].t - 1e-4) { seg = i; break; } }
+  if (prevState.seg !== seg || prevState.seqIdx !== dispKey) {
+    prevState.seg = seg; prevState.seqIdx = dispKey;
+    activeSeg = seg;
+    if (randomMode) {
+      var m2 = Math.floor(beatIdx / 4), b2 = beatIdx % 4;
+      var prevB = curBeat;
+      if (m2 !== curM) { curM = m2; curBeat = b2; renderMeasures(); }
+      else if (b2 !== curBeat) { curBeat = b2; updateBeatHL(prevB, b2); }
+      dispId = measures[m2][b2];
+    } else {
+      var prevSlot2 = playSlotIdx;
+      playSlotIdx = dispKey;
+      dispId = effSeq[dispKey] !== null ? effSeq[dispKey] : -1;
+      updateSeqHighlight(prevSlot2, dispKey);
+    }
+    renderMain();
+  }
+  raf = requestAnimationFrame(animate);
+}
+
+// iOSオーディオアンロック: 無音バッファをユーザー操作内で再生して音声セッションを起動
+function unlockAudio() {
+  try {
+    var b = actx.createBuffer(1, 1, 22050);
+    var s = actx.createBufferSource();
+    s.buffer = b; s.connect(actx.destination); s.start(0);
+  } catch (e) {}
+}
+
+function makeCtx() {
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function beginPlayback() {
+  var t0 = actx.currentTime + 0.15;
+  var startBeat = countIn ? -COUNT_BEATS : 0;
+  anchor = { t: t0, beats: startBeat };
+  nextEv = { beatNum: startBeat, evIdx: 0 };
+  prevState = { seg: -1, seqIdx: -1, count: 0 };
+  if (randomMode) {
+    measures = [genMeasure(), genMeasure()];
+    curM = 0; curBeat = -1;
+    renderMeasures();
+  }
+  playing = true;
+  playBtn.innerHTML = "&#9632;"; playBtn.classList.add("playing");
+  renderPalette();
+  timer = setInterval(scheduler, 25);
+  raf = requestAnimationFrame(animate);
+}
+
+function start() {
+  if (!randomMode && !effSeq.length) return;
+  if (!actx || actx.state === "closed") makeCtx();
+  unlockAudio();
+  if (actx.state !== "running") { try { actx.resume(); } catch (e) {} }
+  // resume完了を待たずに進める。0.5秒で復帰しなければコンテキストを作り直す
+  // (iOSでロック/バックグラウンド後にAudioContextが壊れたままになる対策)
+  var tries = 0, recreated = false;
+  (function waitRun() {
+    if (actx.state === "running") { beginPlayback(); return; }
+    if (tries >= 10 && !recreated) {
+      try { actx.close(); } catch (e) {}
+      makeCtx(); unlockAudio();
+      try { actx.resume(); } catch (e) {}
+      recreated = true; tries = 0;
+      setTimeout(waitRun, 50); return;
+    }
+    if (tries >= 20) { beginPlayback(); return; } // 音が出なくても表示は開始
+    tries++; setTimeout(waitRun, 50);
+  })();
+}
+
+function stop() {
+  playing = false;
+  playBtn.innerHTML = "&#9654;"; playBtn.classList.remove("playing");
+  var prevSlot = playSlotIdx;
+  activeSeg = -1; playSlotIdx = -1; countNum = 0; curRot = 0;
+  clearInterval(timer); cancelAnimationFrame(raf);
+  if (randomMode) {
+    var pb = curBeat; curBeat = -1;
+    updateBeatHL(pb, -1);
+    if (measures.length) dispId = measures[curM] ? measures[curM][0] : measures[0][0];
+  } else {
+    if (effSeq.length) dispId = effSeq[0] !== null ? effSeq[0] : -1;
+    updateSeqHighlight(prevSlot, -1);
+  }
+  renderMain(); renderPalette();
+}
+
+// ============ イベント ============
+playBtn.addEventListener("click", function () { playing ? stop() : start(); });
+
+bpmSlider.addEventListener("input", function (e) {
+  var old = beatDur;
+  bpm = +e.target.value;
+  bpmVal.textContent = bpm;
+  var nd = 60 / bpm;
+  if (playing && actx) {
+    var now = actx.currentTime;
+    var beatsNow = anchor.beats + (now - anchor.t) / old;
+    anchor = { t: now, beats: beatsNow };
+  }
+  beatDur = nd;
+});
+
+countBtn.addEventListener("click", function () {
+  countIn = !countIn;
+  countBtn.textContent = "カウントイン " + (countIn ? "ON" : "OFF");
+  countBtn.classList.toggle("on", countIn);
+});
+
+addRowsBtn.addEventListener("click", addRows);
+clearBtn.addEventListener("click", clearAll);
+
+seqGrid.addEventListener("click", function (e) {
+  var btn = e.target.closest(".slot");
+  if (!btn) return;
+  var i = +btn.dataset.i;
+  if (slots[i] !== null) clearSlot(i);
+});
+
+paletteEl.addEventListener("click", function (e) {
+  var btn = e.target.closest(".pal-btn");
+  if (!btn) return;
+  addPat(+btn.dataset.pid);
+});
+
+// バックグラウンド化/ロック時は再生を自動停止(壊れた音声状態を残さない)
+document.addEventListener("visibilitychange", function () {
+  if (document.hidden && playing) stop();
+});
+window.addEventListener("pagehide", function () {
+  if (playing) stop();
+});
+
+// ============ 初期描画 ============
+recomputeEff(); applyView(); renderSeq(); renderPalette(); renderMain();
+</script>
+</body>
+</html>
