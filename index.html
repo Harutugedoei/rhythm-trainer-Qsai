@@ -225,7 +225,7 @@ function notationMarkup(pat, color) {
   function sx(i) { return xs[i] + 7; }
   var noteIdx = [];
   evs.forEach(function (e, i) { if (!e.rest) noteIdx.push(i); });
-  var beamGroup = noteIdx.length > 1;
+  var beamGroup = n > 1 && noteIdx.length >= 1; // 休符を含んでも音符を上側で連結
   var s = "";
 
   evs.forEach(function (e, i) {
@@ -264,8 +264,9 @@ function notationMarkup(pat, color) {
   });
 
   if (beamGroup) {
-    var first = noteIdx[0], last = noteIdx[noteIdx.length - 1];
-    s += '<rect x="' + (sx(first) - 1.2) + '" y="' + by + '" width="' + (sx(last) - sx(first) + 2.4) + '" height="' + bw + '" fill="' + color + '"/>';
+    // 休符をまたいで上側で連結: 連桁は拍頭(最初の枠)から最後の音符まで張る
+    var beamFirst = 0, beamLast = noteIdx[noteIdx.length - 1];
+    s += '<rect x="' + (sx(beamFirst) - 1.2) + '" y="' + by + '" width="' + (sx(beamLast) - sx(beamFirst) + 2.4) + '" height="' + bw + '" fill="' + color + '"/>';
     for (var k = 0; k < noteIdx.length; k++) {
       var i2 = noteIdx[k];
       if (beamsOf(durs[i2]) !== 2) continue;
@@ -274,7 +275,9 @@ function notationMarkup(pat, color) {
       if (nb) {
         s += '<rect x="' + (sx(i2) - 1.2) + '" y="' + b2 + '" width="' + (sx(i2 + 1) - sx(i2) + 2.4) + '" height="' + bw + '" fill="' + color + '"/>';
       } else if (!pb) {
-        var xA = k === 0 ? sx(i2) - 1.2 : sx(i2) - 14;
+        // 16分の部分連桁: 拍内ペアの前半は右向き、後半は左向き
+        var firstOfPair = Math.abs(evs[i2].t % 0.5) < EPS;
+        var xA = firstOfPair ? sx(i2) - 1.2 : sx(i2) - 14;
         s += '<rect x="' + xA + '" y="' + b2 + '" width="15" height="' + bw + '" fill="' + color + '"/>';
       }
     }
