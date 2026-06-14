@@ -238,16 +238,22 @@ function notationMarkup(pat, color) {
              '<path d="M ' + (cxr + 6) + ' 57 Q ' + (cxr - 3) + ' 55 ' + (cxr + 2) + ' 65" stroke="' + color + '" stroke-width="3.2" fill="none" stroke-linecap="round"/>';
         return;
       }
-      // 8分休符(簡易グリフ)
-      s += '<circle cx="' + (x - 2) + '" cy="' + (by + 16) + '" r="4.5" fill="' + color + '"/>' +
-           '<path d="M ' + (x - 2) + ' ' + (by + 16) + ' Q ' + (x + 7) + ' ' + (by + 25) + ' ' + (x + 13) + ' ' + (by + 18) + ' L ' + (x + 4) + ' ' + (hy - 2) + '" stroke="' + color + '" stroke-width="2.8" fill="none" stroke-linecap="round"/>';
-      // 16分休符: フックをもう一段追加
-      if (Math.abs(durs[i] - 0.25) < EPS) {
-        s += '<circle cx="' + (x + 1) + '" cy="' + (by + 26) + '" r="4" fill="' + color + '"/>';
+      // 8分/16分休符: 上にボール → 右へフック → フック終端から左下へ斜線
+      var is16 = Math.abs(durs[i] - 0.25) < EPS;
+      var isDot = Math.abs(durs[i] - 0.75) < EPS;
+      // 本体の斜線(フック終端=右上 → 左下へ)
+      s += '<line x1="' + (x + 6) + '" y1="37" x2="' + (is16 ? (x - 4) : (x - 2)) + '" y2="' + (is16 ? 62 : 58) + '" stroke="' + color + '" stroke-width="3" stroke-linecap="round"/>';
+      // フック1(上): ボール + 右へ伸びるフック
+      s += '<circle cx="' + (x - 3) + '" cy="35" r="4" fill="' + color + '"/>' +
+           '<path d="M ' + (x - 3) + ' 35 Q ' + (x + 2) + ' 43 ' + (x + 6) + ' 37" stroke="' + color + '" stroke-width="2.8" fill="none" stroke-linecap="round"/>';
+      if (is16) {
+        // フック2(下): 上のボールより左・約12px下、フック終端は斜線に接する
+        s += '<circle cx="' + (x - 6) + '" cy="47" r="4" fill="' + color + '"/>' +
+             '<path d="M ' + (x - 6) + ' 47 Q ' + (x - 2) + ' 55 ' + (x + 1) + ' 49" stroke="' + color + '" stroke-width="2.8" fill="none" stroke-linecap="round"/>';
       }
-      // 付点8分休符: 右に付点
-      if (Math.abs(durs[i] - 0.75) < EPS) {
-        s += '<circle cx="' + (x + 17) + '" cy="' + (by + 17) + '" r="3" fill="' + color + '"/>';
+      if (isDot) {
+        // 付点: 休符の右へ離して配置
+        s += '<circle cx="' + (x + 13) + '" cy="38" r="3.4" fill="' + color + '"/>';
       }
       return;
     }
@@ -563,8 +569,8 @@ function animate() {
   if (dot) dot.setAttribute("transform", "rotate(" + curRot + " 160 160)");
 
   if (total < 0) {
-    // カウントイン中: 4,3,2,1
-    var cn = Math.ceil(-total);
+    // カウントイン中: 4,3,2,1(リードインで5が出ないよう上限をクランプ)
+    var cn = Math.min(COUNT_BEATS, Math.ceil(-total));
     if (prevState.count !== cn) {
       prevState.count = cn;
       countNum = cn; activeSeg = -1;
