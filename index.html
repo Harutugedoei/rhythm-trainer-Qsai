@@ -70,7 +70,11 @@
     <button id="playBtn">&#9654;</button>
     <div class="slider-col">
       <div class="bpm-label">&#9833; = <span id="bpmVal">70</span> BPM</div>
-      <input type="range" id="bpmSlider" min="30" max="140" value="70">
+      <div style="display:flex; align-items:center; gap:6px;">
+        <button id="bpmMinus" type="button" style="width:32px;height:32px;border-radius:8px;border:1px solid #d5d2cb;background:#fff;color:#333;font-size:18px;font-weight:700;cursor:pointer;flex-shrink:0;padding:0;line-height:1;">−</button>
+        <input type="range" id="bpmSlider" min="30" max="140" value="70" style="flex:1;width:auto;min-width:0;">
+        <button id="bpmPlus" type="button" style="width:32px;height:32px;border-radius:8px;border:1px solid #d5d2cb;background:#fff;color:#333;font-size:18px;font-weight:700;cursor:pointer;flex-shrink:0;padding:0;line-height:1;">＋</button>
+      </div>
       <div>
         <button id="countBtn" class="toggle on">カウントイン ON</button>
         <button id="viewBtn" class="toggle on" onclick="toggleView()">音符のみ ON</button>
@@ -690,10 +694,13 @@ function stop() {
 // ============ イベント ============
 playBtn.addEventListener("click", function () { playing ? stop() : start(); });
 
-bpmSlider.addEventListener("input", function (e) {
+function setBpm(v) {
+  var lo = +bpmSlider.min, hi = +bpmSlider.max;
+  v = Math.max(lo, Math.min(hi, Math.round(v)));
   var old = beatDur;
-  bpm = +e.target.value;
+  bpm = v;
   bpmVal.textContent = bpm;
+  bpmSlider.value = bpm;
   var nd = 60 / bpm;
   if (playing && actx) {
     var now = actx.currentTime;
@@ -701,7 +708,11 @@ bpmSlider.addEventListener("input", function (e) {
     anchor = { t: now, beats: beatsNow };
   }
   beatDur = nd;
-});
+}
+
+bpmSlider.addEventListener("input", function (e) { setBpm(+e.target.value); });
+document.getElementById("bpmMinus").addEventListener("click", function () { setBpm(bpm - 1); });
+document.getElementById("bpmPlus").addEventListener("click", function () { setBpm(bpm + 1); });
 
 countBtn.addEventListener("click", function () {
   countIn = !countIn;
